@@ -4,6 +4,7 @@ namespace APIcontroller
 {
     class Controller
     {
+        private string containing_path;
         private Dictionary<string, MethodInfo> paths = new Dictionary<string, MethodInfo>();
 
         private void initMethods()
@@ -27,33 +28,39 @@ namespace APIcontroller
                 foreach (MethodInfo method in methods)
                 {
                     Attribute? resource_attribute = method.GetCustomAttribute(resource_type);
-                    if (resource_attribute != null)
+                    if (resource_attribute == null)
                     {
-                        if (!method.IsStatic)
-                        {
-                            throw new MethodNotStaticExeption(method.Name);
-                        }
-                        if (method.ReturnType != typeof(byte[])
-                         && method.ReturnType != typeof(Span<byte>)
-                         && method.ReturnType != typeof(ReadOnlySpan<byte>))
-                        {
-                            throw new IncorrectReturnTypeExeption(method.Name);
-                        }
-
-                        Attribute? group_attribute = type.GetCustomAttribute(group_type);
-
-                        object? group_path = group_attribute?.GetType().GetField("group_path")?.GetValue(group_attribute);
-                        object? resource_path = resource_attribute?.GetType()?.GetField("resource_path")?.GetValue(resource_attribute);
-                        string path = $"{group_path}{resource_path}";
-
-                        paths.Add(path, method);
+                        continue;
                     }
+
+                    if (!method.IsStatic)
+                    {
+                        throw new MethodNotStaticExeption(method.Name);
+                    }
+
+                    if (
+                      method.ReturnType != typeof(byte[])
+                      && method.ReturnType != typeof(Span<byte>)
+                      && method.ReturnType != typeof(ReadOnlySpan<byte>))
+                    {
+                        throw new IncorrectReturnTypeExeption(method.Name);
+                    }
+
+                    Attribute? group_attribute = type.GetCustomAttribute(group_type);
+
+                    object? group_path = group_attribute?.GetType().GetField("group_path")?.GetValue(group_attribute);
+                    object? resource_path = resource_attribute?.GetType()?.GetField("resource_path")?.GetValue(resource_attribute);
+                    string path = $"{group_path}{resource_path}";
+
+                    paths.Add(path, method);
                 }
             }
         }
 
         public Controller(string containing_path)
         {
+            this.containing_path = containing_path;
+
             initMethods();
         }
     }
