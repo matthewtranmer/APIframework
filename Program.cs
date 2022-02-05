@@ -11,7 +11,18 @@ namespace APIcontroller
     {
         static void Main(string[] args)
         {
-            
+            Controller a = new Controller("");
+        }
+
+        [ResourceGroup("/accounts")]
+        class containefr
+        {
+            [Resource("/login")]
+            public static byte login()
+            {
+                Console.WriteLine("Called");
+                return 4;
+            }
         }
     }
 }

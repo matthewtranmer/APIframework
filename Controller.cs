@@ -1,25 +1,34 @@
 ﻿using System.Reflection;
+using System.Net.Sockets;
+using Cryptography;
 
 namespace APIcontroller
 {
     class Controller
     {
         private string containing_path;
+        private SecureSocket socket_wrapper;
         private Dictionary<string, MethodInfo> paths = new Dictionary<string, MethodInfo>();
 
         private void initMethods()
         {
             Type group_type = typeof(ResourceGroupAttribute);
-            Type[] assembly_types = Assembly.GetExecutingAssembly().GetTypes();
+            Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
+
             List<Type> resource_groups = new List<Type>();
 
-            foreach (Type type in assembly_types)
+            foreach (Assembly assembly in assemblies)
             {
-                if (type.GetCustomAttribute(group_type) != null)
+                Type[] assembly_types = assembly.GetTypes();
+                foreach (Type type in assembly_types)
                 {
-                    resource_groups.Add(type);
+                    if (type.GetCustomAttribute(group_type) != null)
+                    {
+                        resource_groups.Add(type);
+                    }
                 }
             }
+            
 
             Type resource_type = typeof(ResourceAttribute);
             foreach (Type type in resource_groups)
@@ -57,51 +66,24 @@ namespace APIcontroller
             }
         }
 
-        public Controller(string containing_path)
+        //make async
+        private void network_handle()
+        {
+            while (true)
+            {
+                Span<byte> api_request = socket_wrapper.secureRecv();
+            }
+        }
+
+        public Controller(string containing_path)//, Socket socket)
         {
             this.containing_path = containing_path;
-
+            //socket_wrapper = new SecureSocket(socket);
             initMethods();
-        }
-    }
 
-    public class MethodNotStaticExeption : Exception
-    {
-        public MethodNotStaticExeption(string method_name) : base($"The method '{method_name}' was created as a resource but is not a static method.") { }
-    }
-    public class IncorrectReturnTypeExeption : Exception
-    {
-        public IncorrectReturnTypeExeption(string method_name) : base($"The method '{method_name}' was created as a resource but does not return 'byte[]', 'Span<byte>' or 'ReadOnlySpan<byte>'") { }
-    }
+            
 
-    [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
-    public class ResourceGroupAttribute : Attribute
-    {
-        public string group_path;
-
-        public ResourceGroupAttribute()
-        {
-            group_path = "/";
-        }
-
-        public ResourceGroupAttribute(string group_path)
-        {
-            this.group_path = group_path;
-        }
-    }
-
-    [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
-    public class ResourceAttribute : Attribute
-    {
-        public string resource_path;
-
-        public ResourceAttribute()
-        {
-            resource_path = "";
-        }
-        public ResourceAttribute(string resource_path)
-        {
-            this.resource_path = resource_path;
+            paths["/accounts/login"].Invoke(null, null);
         }
     }
 }
