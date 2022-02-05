@@ -66,6 +66,14 @@ namespace APIcontroller
             }
         }
 
+        private void send()
+        {
+            MemoryStream stream = new MemoryStream();
+            BinaryWriter binary_writer = new BinaryWriter(stream);
+
+            //socket_wrapper.secureSend();
+        }
+
         //make async
         private void network_handle()
         {
