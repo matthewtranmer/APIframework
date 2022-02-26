@@ -2,8 +2,10 @@
 using Cryptography;
 using System.Net.Sockets;
 using System.Collections.Generic;
-using ProtoBuf;
 using System.Buffers;
+using System.Text.Json;
+using System.Text;
+using System.Net;
 
 namespace APIClient
 {
@@ -15,49 +17,39 @@ namespace APIClient
         DELETE
     }
 
-    [ProtoContract]
-    class RequestMessage
-    {
-        [ProtoMember(1)]
-        public Method method;
-
-        [ProtoMember(2)]
-        public string uri;
-    }
-
     class APIClient
     {
         private SecureSocket socket_wrapper;
-        private MemoryPool<byte> memory_pool;
 
         public APIClient(Socket socket)
         {
             socket_wrapper = new SecureSocket(socket);
-            memory_pool = MemoryPool<byte>.Shared;
         }
 
-        
-
-        public void request(Method method, string uri)
+        public Dictionary<string, string>? request(Method method, string uri, Dictionary<string, string>? body)
         {
-            request<byte>(method, uri, null);
-        }
+            string json_body = JsonSerializer.Serialize(body);
 
-        public void request<T>(Method method, string uri, T? body) where T : class
-        {
-            RequestMessage request = new RequestMessage()
-            {
-                method = method,
-                uri = uri,
-            };
+            Dictionary<string, string>? headers = new Dictionary<string, string>();
+            headers["method"] = method.ToString();
+            headers["URI"] = uri;
+            headers["body"] = json_body;
 
+            string json_headers = JsonSerializer.Serialize(headers);
+
+            socket_wrapper.secureSend(Encoding.UTF8.GetBytes(json_headers));
+            Span<byte> response_json = socket_wrapper.secureRecv();
+
+            Dictionary<string, string>? response = JsonSerializer.Deserialize<Dictionary<string, string>>(response_json);
             
+            string? response_body_json = response?["response_body"];
+            Dictionary<string, string>? response_body = default;
+            if (response_body_json != null)
+            {
+                response_body = JsonSerializer.Deserialize<Dictionary<string, string>>(response_body_json);
+            }
 
-            MemoryStream stream = new MemoryStream();
-            Serializer.Serialize(stream, request);
-
-            IMemoryOwner<byte> rented_memory = memory_pool.Rent(Convert.ToInt32(stream.Length));
-            stream.Read(rented_memory.Memory.Span);
+            return response_body;
         }
     }
 
@@ -65,7 +57,16 @@ namespace APIClient
     {
         static void Main()
         {
+            while (true)
+            {
+                Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                socket.Connect(new IPEndPoint(new IPAddress(new byte[] { 127, 0, 0, 1 }), 8063));
 
+                APIClient client = new APIClient(socket);
+                var response = client.request(Method.GET, "api/accounts/login", null);
+                Console.WriteLine(response?["Username"]);
+            }
+            
         }
     }
 }

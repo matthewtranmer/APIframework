@@ -1,16 +1,19 @@
 ﻿using System.Reflection;
 using System.Net.Sockets;
+using System.Text.Json;
+using System.Text;
 using Cryptography;
+using DataStructures;
 
 namespace APIcontroller
 {
     class Controller
     {
-        private string containing_path;
-        private SecureSocket socket_wrapper;
-        private Dictionary<string, MethodInfo> paths = new Dictionary<string, MethodInfo>();
+        private Socket socket;
+        private Dictionary<string, Dictionary<string, MethodInfo>> paths = new Dictionary<string, Dictionary<string, MethodInfo>>();
+        private SynchronizationQueue<Socket> connections = new SynchronizationQueue<Socket>(1024);
 
-        private void initMethods()
+        private void init_methods(string? containing_path)
         {
             Type group_type = typeof(ResourceGroupAttribute);
             Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
@@ -29,7 +32,6 @@ namespace APIcontroller
                 }
             }
             
-
             Type resource_type = typeof(ResourceAttribute);
             foreach (Type type in resource_groups)
             {
@@ -47,10 +49,7 @@ namespace APIcontroller
                         throw new MethodNotStaticExeption(method.Name);
                     }
 
-                    if (
-                      method.ReturnType != typeof(byte[])
-                      && method.ReturnType != typeof(Span<byte>)
-                      && method.ReturnType != typeof(ReadOnlySpan<byte>))
+                    if (method.ReturnType != typeof(APIResponse))
                     {
                         throw new IncorrectReturnTypeExeption(method.Name);
                     }
@@ -59,39 +58,130 @@ namespace APIcontroller
 
                     object? group_path = group_attribute?.GetType().GetField("group_path")?.GetValue(group_attribute);
                     object? resource_path = resource_attribute?.GetType()?.GetField("resource_path")?.GetValue(resource_attribute);
-                    string path = $"{group_path}{resource_path}";
+                    Method? request_method = (Method?)resource_attribute?.GetType()?.GetField("request_method")?.GetValue(resource_attribute);
+                    string path = $"{containing_path}{group_path}{resource_path}";
 
-                    paths.Add(path, method);
+                    if (!paths.ContainsKey(path))
+                    {
+                        paths.Add(path, new Dictionary<string, MethodInfo>());
+                    }
+
+                    var stored_dictonary = paths[path];
+                    stored_dictonary.Add(request_method.ToString(), method);
                 }
             }
         }
 
-        private void send()
+        void handle_connection(Socket raw_conn)
         {
-            MemoryStream stream = new MemoryStream();
-            BinaryWriter binary_writer = new BinaryWriter(stream);
+            SecureSocket secure_connection = new SecureSocket(raw_conn);
+            Span<byte> request = secure_connection.secureRecv();
 
-            //socket_wrapper.secureSend();
+            Dictionary<string, string>? headers = JsonSerializer.Deserialize<Dictionary<string, string>>(request);
+
+            if (headers == null)
+            {
+                //error
+            }
+
+            if (!headers.ContainsKey("URI"))
+            {
+                //error
+            }
+
+            if (!headers.ContainsKey("method"))
+            {
+                //error
+            }
+
+            string URI = headers["URI"];
+            string method = headers["method"];
+
+            if (!paths.ContainsKey(URI))
+            {
+                //error
+            }
+
+            Dictionary<string, string>? body = JsonSerializer.Deserialize<Dictionary<string, string>>(headers["body"]);
+            var resource = paths[URI];
+
+            if (!resource.ContainsKey(method))
+            {
+                //error
+            }
+
+            object? response_object = resource[method].Invoke(null, new object?[1] { body });
+
+            APIResponse? response_struct = response_object as APIResponse?;
+            string? body_json = JsonSerializer.Serialize(response_struct?.response_body);
+
+            Dictionary<string, string?>? response_dict = new Dictionary<string, string?>()
+            {
+                { "response_code", response_struct?.response_code },
+                { "error_message", response_struct?.error_message },
+                { "response_body", body_json }
+            };
+
+            string response = JsonSerializer.Serialize(response_dict);
+            secure_connection.secureSend(Encoding.UTF8.GetBytes(response));
         }
 
-        //make async
-        private void network_handle()
+        private async Task worker()
         {
+            Console.WriteLine("Worker started");
             while (true)
             {
-                Span<byte> api_request = socket_wrapper.secureRecv();
+                Socket raw_conn = await connections.deQueue();
+
+                handle_connection(raw_conn);
+                raw_conn.Close();
+            }
+        }       
+
+        private Task[] start_workers()
+        {
+            Task[] tasks = new Task[Settings.workers];
+            for (int i = 0; i<Settings.workers; i++)
+            {
+                tasks[i] = worker();
+            }
+
+            return tasks;
+        }
+
+        private void start_server()
+        {
+            Console.WriteLine("Server started");
+            while (true)
+            {
+                var sock = socket.Accept();
+                Console.WriteLine("Accepted");
+                if (connections.isFull())
+                {
+                    Console.WriteLine("Full");
+                    sock.Close();
+                    continue;
+                }
+
+                sock.ReceiveTimeout = 100;
+                sock.SendTimeout = 200; 
+                connections.enQueue(sock);
             }
         }
 
-        public Controller(string containing_path)//, Socket socket)
+        public void start()
         {
-            this.containing_path = containing_path;
-            //socket_wrapper = new SecureSocket(socket);
-            initMethods();
+            start_workers();
+            start_server();
+        }
 
+        public Controller(string? containing_path, Socket socket)
+        {
+            this.socket = socket;
+            socket.ReceiveTimeout = 100;
+            socket.SendTimeout = 200;
             
-
-            paths["/accounts/login"].Invoke(null, null);
+            init_methods(containing_path);
         }
     }
 }

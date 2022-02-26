@@ -12,6 +12,6 @@ namespace APIcontroller
     }
     public class IncorrectReturnTypeExeption : Exception
     {
-        public IncorrectReturnTypeExeption(string method_name) : base($"The method '{method_name}' was created as a resource but does not return 'byte[]', 'Span<byte>' or 'ReadOnlySpan<byte>'") { }
+        public IncorrectReturnTypeExeption(string method_name) : base($"The method '{method_name}' was created as a resource but it's return type isnt of type 'Response'") { }
     }
 }
