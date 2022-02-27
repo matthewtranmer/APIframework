@@ -72,6 +72,12 @@ namespace APIcontroller
             }
         }
 
+        void sendError(SecureSocket socket, string error_message)
+        {
+            string error_json = "{\"srv_error_message\":\"" + error_message + "\"}";
+            socket.secureSend(Encoding.UTF8.GetBytes(error_json));
+        }
+
         void handle_connection(Socket raw_conn)
         {
             SecureSocket secure_connection = new SecureSocket(raw_conn);
@@ -81,17 +87,17 @@ namespace APIcontroller
 
             if (headers == null)
             {
-                //error
+                sendError(secure_connection, "Error receiving headers");
             }
 
             if (!headers.ContainsKey("URI"))
             {
-                //error
+                sendError(secure_connection, "URI was not provided in the request");
             }
 
             if (!headers.ContainsKey("method"))
             {
-                //error
+                sendError(secure_connection, "Request method was not provided in the request");
             }
 
             string URI = headers["URI"];
@@ -99,7 +105,7 @@ namespace APIcontroller
 
             if (!paths.ContainsKey(URI))
             {
-                //error
+                sendError(secure_connection, "URI could not be found");
             }
 
             Dictionary<string, string>? body = JsonSerializer.Deserialize<Dictionary<string, string>>(headers["body"]);
@@ -107,7 +113,7 @@ namespace APIcontroller
 
             if (!resource.ContainsKey(method))
             {
-                //error
+                sendError(secure_connection, "The given request method is not defined");
             }
 
             object? response_object = resource[method].Invoke(null, new object?[1] { body });
@@ -118,8 +124,9 @@ namespace APIcontroller
             Dictionary<string, string?>? response_dict = new Dictionary<string, string?>()
             {
                 { "response_code", response_struct?.response_code },
-                { "error_message", response_struct?.error_message },
-                { "response_body", body_json }
+                { "custom_error_message", response_struct?.error_message },
+                { "response_body", body_json },
+                { "srv_error_message", null }
             };
 
             string response = JsonSerializer.Serialize(response_dict);

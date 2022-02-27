@@ -26,7 +26,7 @@ namespace APIClient
             socket_wrapper = new SecureSocket(socket);
         }
 
-        public Dictionary<string, string>? request(Method method, string uri, Dictionary<string, string>? body)
+        public (Dictionary<string, string>? response, string? general_error) request(Method method, string uri, Dictionary<string, string>? body)
         {
             string json_body = JsonSerializer.Serialize(body);
 
@@ -41,6 +41,12 @@ namespace APIClient
             Span<byte> response_json = socket_wrapper.secureRecv();
 
             Dictionary<string, string>? response = JsonSerializer.Deserialize<Dictionary<string, string>>(response_json);
+
+            string? server_error = response?["srv_error_message"];
+            if (server_error != null)
+            {
+                return (null, server_error);
+            }
             
             string? response_body_json = response?["response_body"];
             Dictionary<string, string>? response_body = default;
@@ -49,7 +55,7 @@ namespace APIClient
                 response_body = JsonSerializer.Deserialize<Dictionary<string, string>>(response_body_json);
             }
 
-            return response_body;
+            return (response_body, null);
         }
     }
 
@@ -57,16 +63,23 @@ namespace APIClient
     {
         static void Main()
         {
-            while (true)
-            {
-                Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                socket.Connect(new IPEndPoint(new IPAddress(new byte[] { 127, 0, 0, 1 }), 8063));
+            Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            socket.Connect(new IPEndPoint(new IPAddress(new byte[] { 127, 0, 0, 1 }), 8063));
 
-                APIClient client = new APIClient(socket);
-                var response = client.request(Method.GET, "api/accounts/login", null);
-                Console.WriteLine(response?["Username"]);
+            APIClient client = new APIClient(socket);
+            (var response, var error) = client.request(Method.GET, "api/accounts/login", null);
+            if (error != null)
+            {
+                Console.WriteLine(error);
+                return;
             }
-            
+
+            foreach (var item in response)
+            {
+                Console.WriteLine(item);
+            }
+                
+            Console.WriteLine(response);
         }
     }
 }
