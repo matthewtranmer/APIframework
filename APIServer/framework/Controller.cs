@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text;
 using Cryptography;
 using DataStructures;
+using log4net;
 
 namespace APIcontroller
 {
@@ -52,6 +53,16 @@ namespace APIcontroller
                     if (method.ReturnType != typeof(APIResponse))
                     {
                         throw new IncorrectReturnTypeExeption(method.Name);
+                    }
+
+                    ParameterInfo[] parameters = method.GetParameters();
+                    if (parameters.Length == 0)
+                    {
+                        throw new NoParametersException(method.Name);
+                    }
+                    if (parameters[0].ParameterType != typeof(APIRequest))
+                    {
+                        throw new FirstParameterTypeException(method.Name);
                     }
 
                     Attribute? group_attribute = type.GetCustomAttribute(group_type);
@@ -108,17 +119,18 @@ namespace APIcontroller
                 sendError(secure_connection, "URI could not be found");
             }
 
-            Dictionary<string, string>? body = JsonSerializer.Deserialize<Dictionary<string, string>>(headers["body"]);
             var resource = paths[URI];
-
             if (!resource.ContainsKey(method))
             {
                 sendError(secure_connection, "The given request method is not defined");
             }
 
-            object? response_object = resource[method].Invoke(null, new object?[1] { body });
+            Dictionary<string, string>? body = JsonSerializer.Deserialize<Dictionary<string, string>>(headers["body"]);
+            APIRequest api_request = new APIRequest() { request_body = body };
 
+            object? response_object = resource[method].Invoke(null, new object?[1] { api_request });
             APIResponse? response_struct = response_object as APIResponse?;
+
             string? body_json = JsonSerializer.Serialize(response_struct?.response_body);
 
             Dictionary<string, string?>? response_dict = new Dictionary<string, string?>()
@@ -135,7 +147,6 @@ namespace APIcontroller
 
         private async Task worker()
         {
-            Console.WriteLine("Worker started");
             while (true)
             {
                 Socket raw_conn = await connections.deQueue();
@@ -151,6 +162,7 @@ namespace APIcontroller
             for (int i = 0; i<Settings.workers; i++)
             {
                 tasks[i] = worker();
+                Console.WriteLine($"Worker #{i} Started");
             }
 
             return tasks;
@@ -158,11 +170,12 @@ namespace APIcontroller
 
         private void start_server()
         {
-            Console.WriteLine("Server started");
+            Console.WriteLine("Server Started");
             while (true)
             {
                 var sock = socket.Accept();
-                Console.WriteLine("Accepted");
+                Console.WriteLine("Accepted Request");
+
                 if (connections.isFull())
                 {
                     Console.WriteLine("Full");

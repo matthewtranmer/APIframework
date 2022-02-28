@@ -1,7 +1,5 @@
 ﻿using System.Net;
 using System.Net.Sockets;
-using System.Text;
-using Cryptography;
 
 namespace APIcontroller
 {
@@ -21,29 +19,17 @@ namespace APIcontroller
         }
 
         [ResourceGroup("/accounts")]
-        class containefr
+        class Accounts
         {
-            static Random random = new Random();
-
             [Resource("/login", Method.GET)]
-            public static APIResponse login_get(object body)
+            public static APIResponse login_get(APIRequest request)
             {
-                //Console.WriteLine("Called GET");
-
-                Dictionary<string, string> response_body = new Dictionary<string, string>()
-                {
-                    { "Username", random.Next(0, 199999999).ToString() },
-                    { "Password", "Matthew123" }
-                };
-                APIResponse response = new APIResponse(response_body);
-
-                return response;
+                return new APIResponse();
             }
 
             [Resource("/login", Method.POST)]
-            public static APIResponse login_post(object body)
+            public static APIResponse login_post(APIRequest request)
             {
-                Console.WriteLine("Called POST");
                 return new APIResponse();
             }
         }

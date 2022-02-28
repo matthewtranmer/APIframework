@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace APIcontroller
+﻿namespace APIcontroller
 {
     public class MethodNotStaticExeption : Exception
     {
@@ -12,6 +6,14 @@ namespace APIcontroller
     }
     public class IncorrectReturnTypeExeption : Exception
     {
-        public IncorrectReturnTypeExeption(string method_name) : base($"The method '{method_name}' was created as a resource but it's return type isnt of type 'Response'") { }
+        public IncorrectReturnTypeExeption(string method_name) : base($"The method '{method_name}' was created as a resource but it's return type isnt of type 'Response'.") { }
+    }
+    public class NoParametersException : Exception
+    {
+        public NoParametersException(string method_name) : base($"The method '{method_name}' was created as a resource but it doesn't define any parameters.") { }
+    }
+    public class FirstParameterTypeException : Exception
+    {
+        public FirstParameterTypeException(string method_name) : base($"The method '{method_name}' was created as a resource but its parameter is not of type APIRequest.") { }
     }
 }

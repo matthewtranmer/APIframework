@@ -67,18 +67,19 @@ namespace APIClient
             socket.Connect(new IPEndPoint(new IPAddress(new byte[] { 127, 0, 0, 1 }), 8063));
 
             APIClient client = new APIClient(socket);
-            (var response, var error) = client.request(Method.GET, "api/accounts/login", null);
+
+            var request_body = new Dictionary<string, string>()
+            {
+                { "name", "matthew" }
+            };
+
+            (var response, var error) = client.request(Method.POST, "api/accounts/login", request_body);
             if (error != null)
             {
                 Console.WriteLine(error);
                 return;
             }
 
-            foreach (var item in response)
-            {
-                Console.WriteLine(item);
-            }
-                
             Console.WriteLine(response);
         }
     }
